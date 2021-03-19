@@ -10,16 +10,18 @@ datastore_client = datastore.Client()
 firebase_request_adapter = requests.Request()
 
 
-def store_time(dt):
-    entity = datastore.Entity(key=datastore_client.key('visit'))
+def store_time(email, dt):
+    entity = datastore.Entity(key=datastore_client.key('User', email, 'visit'))
     entity.update({'timestamp': dt})
     datastore_client.put(entity)
 
 
-def fetch_times(limit):
-    query = datastore_client.query(kind='visit')
-    query.order = ['timestamp']
-    times = query.fetch()
+def fetch_times(email, limit):
+    ancestor_key = datastore_client.key('User', email)
+    query = datastore_client.query(kind='visit', ancestor=ancestor_key)
+    query.order = ['-timestamp']
+    times =  query.fetch(limit=limit)
+    # print(times,ancestor_key)
     return times
 
 
@@ -35,13 +37,16 @@ def root():
     # log the error message that is returned
     if id_token:
         try:
-            claims = google.oauth2.id_token.verify_firebase_token(id_token, firebase_request_adapter)
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+            firebase_request_adapter)
+            store_time(claims['email'], datetime.datetime.now())
+            times = fetch_times(claims['email'], 10)
+        
         except ValueError as exc:
             error_message = str(exc)
 
     # render the template with the last times we have
-    return render_template('index.html', user_data=claims, error_message=error_message)
-
+    return render_template('index.html', user_data=claims, error_message=error_message,times=times)
 
 
 if __name__ == '__main__':
