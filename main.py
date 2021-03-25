@@ -10,7 +10,6 @@ app = Flask(__name__)
 datastore_client = datastore.Client()
 firebase_request_adapter = requests.Request()
 
-
 @app.route('/delete_address/<int:id>', methods=['POST'])
 def deleteAddressFromUser(id):
     id_token = request.cookies.get("token")
@@ -18,7 +17,20 @@ def deleteAddressFromUser(id):
     if id_token:
         try:
             claims = google.oauth2.id_token.verify_firebase_token(id_token,
-                                                                firebase_request_adapter)
+            firebase_request_adapter)
+            deleteAddress(claims, id)
+        except ValueError as exc:
+            error_message = str(exc)
+    return redirect('/')
+
+@app.route('/delete_addressv1/<int:id>', methods=['POST'])
+def deleteAddressFromUserv1(id):
+    id_token = request.cookies.get("token")
+    error_message = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
             deleteAddress(claims, id)
         except ValueError as exc:
             error_message = str(exc)
@@ -26,6 +38,16 @@ def deleteAddressFromUser(id):
 
 
 def deleteAddress(claims, id):
+    user_info = retrieveUserInfo(claims)
+    address_list = user_info['address_list']
+    del address_list[id]
+    user_info.update({
+        'address_list': address_list
+    })
+    datastore_client.put(user_info)
+
+
+def deleteAddressv1(claims, id):
     user_info = retrieveUserInfo(claims)
     address_list_keys = user_info['address_list']
     address_key = datastore_client.key('Address', address_list_keys[id])
@@ -39,6 +61,25 @@ def deleteAddress(claims, id):
 
 @app.route('/add_address', methods=['POST'])
 def addAddress():
+    id_token = request.cookies.get("token")
+    claims = None
+    user_info = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            user_info = retrieveUserInfo(claims)
+            print(request)
+            address = createAddress(request.form['address1'], request.form['address2'],
+                                    request.form['address3'], request.form['address4'])
+            addAddressToUser(user_info, address)
+        except ValueError as exc:
+            error_message = str(exc)
+    return redirect('/')
+
+
+@app.route('/add_addressv1', methods=['POST'])
+def addAddressv1():
     id_token = request.cookies.get("token")
     claims = None
     user_info = None
@@ -80,6 +121,26 @@ def editUserInfo():
     return redirect("/")
 
 
+def addAddressToUser(user_info, address_entity):
+    addresses = user_info['address_list']
+    addresses.append(address_entity)
+    user_info.update({
+        'address_list': addresses
+    })
+    datastore_client.put(user_info)
+
+
+def createAddress(address1, address2, address3, address4):
+    entity = datastore.Entity()
+    entity.update({
+        'address1': address1,
+        'address2': address2,
+        'address3': address3,
+        'address4': address4
+    })
+    return entity
+
+
 def updateUserInfo(claims, new_string, new_int, new_float):
     entity_key = datastore_client.key('UserInfo', claims['email'])
     entity = datastore_client.get(entity_key)
@@ -109,10 +170,8 @@ def createUserInfo(claims):
         'name': claims['name'],
         'address_list': []
     })
- 
+
     datastore_client.put(entity)
-
-
 
 
 def retrieveUserInfo(claims):
@@ -145,7 +204,7 @@ def addAddressToUser(user_info, id):
     datastore_client.put(user_info)
 
 
-def createAddress(claims, address1, address2, address3, address4):
+def createAddressv1(claims, address1, address2, address3, address4):
 
     # 63 bit random number that will serve as the key for this address object. not sure why the data store doesn't like 64 bit numbers
     id = random.getrandbits(63)
@@ -167,21 +226,19 @@ def root():
     error_message = None
     claims = None
     user_info = None
-    addresses = None
     if id_token:
         try:
-            claims = google.oauth2.id_token.verify_firebase_token(id_token,
-                                                                  firebase_request_adapter)
+            claims = google.oauth2.id_token.verify_firebase_token(
+                id_token, firebase_request_adapter)
             user_info = retrieveUserInfo(claims)
             if user_info == None:
                 createUserInfo(claims)
                 user_info = retrieveUserInfo(claims)
-            addresses = retrieveAddresses(user_info)
         except ValueError as exc:
             error_message = str(exc)
-    print(addresses)
+    print(user_info['address_list'])
     return render_template('index.html', user_data=claims, error_message=error_message,
-                           user_info=user_info, addresses=addresses)
+                           user_info=user_info)
 
 
 if __name__ == '__main__':
