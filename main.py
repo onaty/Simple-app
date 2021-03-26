@@ -2,9 +2,17 @@ import datetime
 from flask import Flask, render_template, redirect
 from google.cloud import datastore
 import google.oauth2.id_token
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request,Response
 from google.auth.transport import requests
 import random
+from google.cloud import storage
+# import local_constants
+
+
+class local_constants:
+    PROJECT_NAME = 'test-555'
+    PROJECT_STORAGE_BUCKET = 'test-555-308115.appspot.com'
+
 
 app = Flask(__name__)
 datastore_client = datastore.Client()
@@ -164,22 +172,41 @@ def retrieveAddresses(user_info):
     return address_list
 
 
+def createUserInfov1(claims):
+    entity_key = datastore_client.key('UserInfo', claims['email'])
+    entity = datastore.Entity(key=entity_key)
+    entity.update({
+        'email': claims['email'],
+        'name': claims['name'],
+    })
+    datastore_client.put(entity)
+
+
 def createUserInfo(claims):
     entity_key = datastore_client.key('UserInfo', claims['email'])
     entity = datastore.Entity(key=entity_key)
     entity.update({
         'email': claims['email'],
         'name': claims['name'],
-        'address_list': []
     })
 
-    datastore_client.put(entity)
+
+def retrieveUserInfov1(claims):
+    entity_key = datastore_client.key('UserInfo', claims['email'])
+    entity = datastore_client.get(entity_key)
+    return entity
 
 
 def retrieveUserInfo(claims):
     entity_key = datastore_client.key('UserInfo', claims['email'])
     entity = datastore_client.get(entity_key)
     return entity
+
+
+def blobList(prefix):
+    storage_client = storage.Client(project=local_constants.PROJECT_NAME)
+    return storage_client.list_blobs(local_constants.PROJECT_STORAGE_BUCKET,
+                                     prefix=prefix)
 
 
 def store_time(email, dt):
@@ -415,6 +442,87 @@ def pullEntityById():
                            data=result)
 
 
+def addDirectory(directory_name):
+    storage_client = storage.Client(project=local_constants.PROJECT_NAME)
+    bucket = storage_client.bucket(local_constants.PROJECT_STORAGE_BUCKET)
+    blob = bucket.blob(directory_name)
+    blob.upload_from_string(
+        '', content_type='application/x-www-formurlencoded;charset=UTF-8')
+
+
+@app.route('/download_file/<string:filename>', methods=['POST'])
+def downloadFile(filename):
+    id_token = request.cookies.get("token")
+    error_message = None
+    claims = None
+    times = None
+    user_info = None
+    file_bytes = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+        except ValueError as exc:
+            error_message = str(exc)
+    return Response(downloadBlob(filename), mimetype='application/octet-stream')
+
+
+@app.route('/upload_file', methods=['post'])
+def uploadFileHandler():
+    id_token = request.cookies.get("token")
+    error_message = None
+    claims = None
+    times = None
+    user_info = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            file = request.files['file_name']
+            if file.filename == '':
+                return redirect('/')
+            user_info = retrieveUserInfo(claims)
+            addFile(file)
+        except ValueError as exc:
+            error_message = str(exc)
+    return redirect('/')
+
+
+@app.route('/add_directory', methods=['POST'])
+def addDirectoryHandler():
+    id_token = request.cookies.get("token")
+    error_message = None
+    claims = None
+    times = None
+    user_info = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            directory_name = request.form['dir_name']
+            if directory_name == '' or directory_name[len(directory_name) - 1] != '/':
+                return redirect('/')
+            user_info = retrieveUserInfo(claims)
+            addDirectory(directory_name)
+        except ValueError as exc:
+            error_message = str(exc)
+    return redirect('/')
+
+
+def addFile(file):
+    storage_client = storage.Client(project=local_constants.PROJECT_NAME)
+    bucket = storage_client.bucket(local_constants.PROJECT_STORAGE_BUCKET)
+    blob = bucket.blob(file.filename)
+    blob.upload_from_file(file)
+
+
+def downloadBlob(filename):
+    storage_client = storage.Client(project=local_constants.PROJECT_NAME)
+    bucket = storage_client.bucket(local_constants.PROJECT_STORAGE_BUCKET)
+    blob = bucket.blob(filename)
+    return blob.download_as_bytes()
+
+
 @app.route('/initialise_dummy_data', methods=['POST'])
 def initialiseDummyData():
     entity_1 = createDummyData("foo", 1, True)
@@ -431,16 +539,29 @@ def root():
     error_message = None
     claims = None
     times = None
+    user_info = None
+    file_list = []
+    directory_list = []
     if id_token:
         try:
             claims = google.oauth2.id_token.verify_firebase_token(id_token,
                                                                   firebase_request_adapter)
-            query = datastore_client.query(kind='DummyData')
-            result = query.fetch()
+            user_info = retrieveUserInfo(claims)
+            
+            if user_info == None:
+                createUserInfo(claims)
+                user_info = retrieveUserInfo(claims)
+            
+            blob_list = blobList(None)    
+            for i in blob_list:
+                if i.name[len(i.name) - 1] == '/':
+                    directory_list.append(i)
+                else:
+                    file_list.append(i)
         except ValueError as exc:
             error_message = str(exc)
     return render_template('index.html', user_data=claims, error_message=error_message,
-                           data=result)
+                           user_info=user_info, file_list=file_list, directory_list=directory_list)
 
 
 if __name__ == '__main__':

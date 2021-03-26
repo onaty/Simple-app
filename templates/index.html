@@ -22,24 +22,21 @@
         <dt>Name:</dt><dd>{{ user_data['name'] }}</dd>
         <dt>Email:</dt><dd>{{ user_data['email'] }}</dd>
         </dl>
-        <form action="/initialise_dummy_data" method="post">
-        initialise the entities in the datastore<input type="submit"/>
+        <form action="/add_directory" method="post">
+        Directory Name: <input type="text" name="dir_name"/><input type="submit"/>
         </form>
-        <form action="/pull_entity_by_id" method="post">
-        pull an entity by a given id <input type="number" name="id"><input
-       type="submit"/>
+        <form action="/upload_file" method="post" enctype="multipart/form-data">
+        Upload File: <input type="file" name="file_name" /><input type="submit"/>
         </form>
-        <form action="/pull_entity_by_name" method="post">
-        pull an entity by name <input type="text" name="name"><input
-       type="submit"/>
+        <h1>list of directories</h1><br/>
+        {% for i in directory_list %}
+        {{ i.name }}<br/>
+        {% endfor %}
+        <h1>list of files</h1><br/>
+        {% for i in file_list %}
+        <form action="/download_file/{{ i.name }}" method="post">
+        {{ i.name }}<input type="submit"/><br/>
         </form>
-        <form action="/query_multiple_attribs" method="post">
-        example filter on multiple attributes<input type="submit"/>
-        </form>
-        {% for i in data %}
-        Name: {{ i['name'] }}<br/>
-        ID: {{ i['id'] }}<br/>
-        Boolean: {{ i['boolean'] }}<br/>
         {% endfor %}
         {% elif error_message %}
         <p>Error Message: {{ error_message }}</p>
