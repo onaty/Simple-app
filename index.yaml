@@ -1,6 +1,5 @@
 indexes:
-- kind: visit
-  ancestor: yes
-  properties:
-  - name: timestamp
-    direction: desc
+  - kind: DummyData
+    properties:
+      - name: boolean
+      - name: id

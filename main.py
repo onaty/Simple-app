@@ -10,6 +10,7 @@ app = Flask(__name__)
 datastore_client = datastore.Client()
 firebase_request_adapter = requests.Request()
 
+
 @app.route('/delete_address/<int:id>', methods=['POST'])
 def deleteAddressFromUser(id):
     id_token = request.cookies.get("token")
@@ -17,11 +18,12 @@ def deleteAddressFromUser(id):
     if id_token:
         try:
             claims = google.oauth2.id_token.verify_firebase_token(id_token,
-            firebase_request_adapter)
+                                                                  firebase_request_adapter)
             deleteAddress(claims, id)
         except ValueError as exc:
             error_message = str(exc)
     return redirect('/')
+
 
 @app.route('/delete_addressv1/<int:id>', methods=['POST'])
 def deleteAddressFromUserv1(id):
@@ -220,25 +222,225 @@ def createAddressv1(claims, address1, address2, address3, address4):
     return id
 
 
+@app.route('/transaction_add', methods=['POST'])
+def transactionAdd():
+    id_token = request.cookies.get("token")
+    error_message = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            entity_9 = createDummyData(9)
+            entity_10 = createDummyData(10)
+            entity_11 = createDummyData(11)
+            entity_12 = createDummyData(12)
+            transaction = datastore_client.transaction()
+            with transaction:
+                transaction.put(entity_9)
+                transaction.put(entity_10)
+                transaction.put(entity_11)
+                transaction.put(entity_12)
+        except ValueError as exc:
+            error_message = str(exc)
+    return redirect('/')
+
+
+@app.route('/multi_delete', methods=['POST'])
+def multiDelete():
+    id_token = request.cookies.get("token")
+    error_message = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            entity_1_key = datastore_client.key('DummyData', 1)
+            entity_2_key = datastore_client.key('DummyData', 2)
+            entity_3_key = datastore_client.key('DummyData', 3)
+            entity_4_key = datastore_client.key('DummyData', 4)
+            datastore_client.delete_multi([entity_1_key, entity_2_key, entity_3_key,
+                                           entity_4_key])
+        except ValueError as exc:
+            error_message = str(exc)
+    return redirect('/')
+
+
+@app.route('/batch_delete', methods=['POST'])
+def batchDelete():
+    id_token = request.cookies.get("token")
+    error_message = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            entity_5_key = datastore_client.key('DummyData', 5)
+            entity_6_key = datastore_client.key('DummyData', 6)
+            entity_7_key = datastore_client.key('DummyData', 7)
+            entity_8_key = datastore_client.key('DummyData', 8)
+            batch = datastore_client.batch()
+            with batch:
+                batch.delete(entity_5_key)
+                batch.delete(entity_6_key)
+                batch.delete(entity_7_key)
+                batch.delete(entity_8_key)
+        except ValueError as exc:
+            error_message = str(exc)
+    return redirect('/')
+
+
+@app.route('/batch_add', methods=['POST'])
+def batchAdd():
+    id_token = request.cookies.get("token")
+    error_message = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            entity_5 = createDummyData(5)
+            entity_6 = createDummyData(6)
+            entity_7 = createDummyData(7)
+            entity_8 = createDummyData(8)
+            batch = datastore_client.batch()
+            with batch:
+                batch.put(entity_5)
+                batch.put(entity_6)
+                batch.put(entity_7)
+                batch.put(entity_8)
+        except ValueError as exc:
+            error_message = str(exc)
+    return redirect('/')
+
+
+@app.route('/multi_add', methods=['POST'])
+def multiAdd():
+    id_token = request.cookies.get("token")
+    error_message = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            entity_1 = createDummyData(1)
+            entity_2 = createDummyData(2)
+            entity_3 = createDummyData(3)
+            entity_4 = createDummyData(4)
+            datastore_client.put_multi(
+                [entity_1, entity_2, entity_3, entity_4])
+        except ValueError as exc:
+            error_message = str(exc)
+    return redirect('/')
+
+
+def createDummyData(name, id, boolean):
+    entity_key = datastore_client.key('DummyData', id)
+    entity = datastore.Entity(key=entity_key)
+    entity.update({
+        'name': name,
+        'id': id,
+        'boolean': boolean
+    })
+    return entity
+
+
+def createDummyDatav1(number):
+    entity_key = datastore_client.key('DummyData', number)
+    entity = datastore.Entity(key=entity_key)
+    entity.update({
+        'number': number,
+        'squared': number ** 2,
+        'cubed': number ** 3
+    })
+    return entity
+
+
+@app.route('/query_multiple_attribs', methods=['POST'])
+def queryMultipleAttribs():
+    id_token = request.cookies.get("token")
+    error_message = None
+    claims = None
+    times = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            query = datastore_client.query(kind='DummyData')
+            query.add_filter('id', '<', 4)
+            query.add_filter('boolean', '=', True)
+            result = query.fetch()
+        except ValueError as exc:
+            error_message = str(exc)
+    return render_template('index.html', user_data=claims, error_message=error_message,
+                           data=result)
+
+
+@app.route('/pull_entity_by_name', methods=['POST'])
+def pullEntityByName():
+    id_token = request.cookies.get("token")
+    error_message = None
+    claims = None
+    times = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            if request.form['name'] == '':
+                return redirect('/')
+            name = request.form['name']
+            query = datastore_client.query(kind='DummyData')
+            query.add_filter('name', '=', name)
+            result = query.fetch()
+        except ValueError as exc:
+            error_message = str(exc)
+    return render_template('index.html', user_data=claims, error_message=error_message,
+                           data=result)
+
+
+@app.route('/pull_entity_by_id', methods=['POST'])
+def pullEntityById():
+    id_token = request.cookies.get("token")
+    error_message = None
+    claims = None
+    times = None
+    if id_token:
+        try:
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            if request.form['id'] == '':
+                return redirect('/')
+            id = int(request.form['id'])
+            query = datastore_client.query(kind='DummyData')
+            query.add_filter('id', '=', id)
+            result = query.fetch()
+        except ValueError as exc:
+            error_message = str(exc)
+    return render_template('index.html', user_data=claims, error_message=error_message,
+                           data=result)
+
+
+@app.route('/initialise_dummy_data', methods=['POST'])
+def initialiseDummyData():
+    entity_1 = createDummyData("foo", 1, True)
+    entity_2 = createDummyData("bar", 2, False)
+    entity_3 = createDummyData("baz", 3, False)
+    entity_4 = createDummyData("wookie", 4, True)
+    datastore_client.put_multi([entity_1, entity_2, entity_3, entity_4])
+    return redirect('/')
+
+
 @app.route('/')
 def root():
     id_token = request.cookies.get("token")
     error_message = None
     claims = None
-    user_info = None
+    times = None
     if id_token:
         try:
-            claims = google.oauth2.id_token.verify_firebase_token(
-                id_token, firebase_request_adapter)
-            user_info = retrieveUserInfo(claims)
-            if user_info == None:
-                createUserInfo(claims)
-                user_info = retrieveUserInfo(claims)
+            claims = google.oauth2.id_token.verify_firebase_token(id_token,
+                                                                  firebase_request_adapter)
+            query = datastore_client.query(kind='DummyData')
+            result = query.fetch()
         except ValueError as exc:
             error_message = str(exc)
-    print(user_info['address_list'])
     return render_template('index.html', user_data=claims, error_message=error_message,
-                           user_info=user_info)
+                           data=result)
 
 
 if __name__ == '__main__':
